@@ -1,0 +1,7 @@
+{
+  "name": "CubeMaster AI",
+  "description": "A cross-platform Rubik’s Cube solver and learning app featuring 3D visualization, AR-assisted solving, and AI-powered tutorials.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
