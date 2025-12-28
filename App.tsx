@@ -11,6 +11,7 @@ import { Layers, Play, Camera, GraduationCap, BarChart2, ChevronRight, Settings,
 const App: React.FC = () => {
   const [view, setView] = useState<'home' | 'scan' | 'solve' | 'stats'>('home');
   const [cubeState, setCubeState] = useState<CubeState>(INITIAL_CUBE_STATE);
+  const [scannedCount, setScannedCount] = useState(0);
   const [solutions, setSolutions] = useState<Solution[]>([]);
   const [tutorialHint, setTutorialHint] = useState<string>('');
   const [isSolving, setIsSolving] = useState(false);
@@ -23,11 +24,15 @@ const App: React.FC = () => {
       ...prev,
       [faceKey]: faceData
     }));
+    setScannedCount(prev => prev + 1);
   }, []);
 
-  const handleAllFacesComplete = useCallback(() => {
-    setView('solve');
-  }, []);
+  useEffect(() => {
+    if (scannedCount === 6) {
+      setView('solve');
+      setScannedCount(0);
+    }
+  }, [scannedCount]);
 
   const runComparison = async () => {
     setIsSolving(true);
@@ -227,10 +232,7 @@ const App: React.FC = () => {
               <h2 className="text-6xl md:text-8xl font-black tracking-tighter leading-none">AR Vision Hub.</h2>
               <p className="text-slate-400 max-w-2xl mx-auto text-lg leading-relaxed opacity-70">Point your camera to each face. Our neural clustering handles lighting shifts in real-time.</p>
             </div>
-            <Scanner onScanComplete={(key, data) => {
-              handleFaceScan(key, data);
-              if (Object.keys(cubeState).length >= 5) handleAllFacesComplete();
-            }} />
+            <Scanner onScanComplete={handleFaceScan} />
           </div>
         )}
 
@@ -241,11 +243,11 @@ const App: React.FC = () => {
                 <Cube3D state={cubeState} className="w-full aspect-square md:aspect-[16/10] rounded-[3.5rem] shadow-2xl border-2 border-slate-800" />
                 {isPlaying && activeSolutionIdx !== null && (
                   <div className="absolute inset-x-0 top-12 p-8 flex justify-center pointer-events-none">
-                     <div className="bg-blue-600/90 backdrop-blur-2xl border-2 border-white/30 px-12 py-6 rounded-[2.5rem] shadow-3xl animate-bounce">
+                     <div className="bg-blue-600/90 backdrop-blur-2xl border-2 border-white/30 px-12 py-6 rounded-[2.5rem] shadow-3xl animate-bounce text-center">
                         <p className="text-4xl font-black font-mono tracking-widest text-white">
                            {solutions[activeSolutionIdx].moves[playbackIdx]}
                         </p>
-                        <p className="text-center text-[10px] font-black uppercase tracking-widest text-white/60 mt-2">Next Step</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mt-2">Next Step</p>
                      </div>
                   </div>
                 )}

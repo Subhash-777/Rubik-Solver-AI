@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { CubeState, Move } from '../types';
+import { CubeState, Move, Color } from '../types';
 import { COLOR_MAP } from '../constants';
 
 interface Cube3DProps {
@@ -13,104 +13,134 @@ interface Cube3DProps {
 const Cube3D: React.FC<Cube3DProps> = ({ state, className }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cubesRef = useRef<THREE.Group[]>([]);
-  const pivotRef = useRef<THREE.Group | null>(null);
+
+  // Helper to convert hex strings from COLOR_MAP to THREE.Color
+  const getThreeColor = (c: Color) => new THREE.Color(COLOR_MAP[c]);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
     const scene = new THREE.Scene();
-    scene.background = null; // Transparent for better embedding
-    const camera = new THREE.PerspectiveCamera(50, containerRef.current.clientWidth / containerRef.current.clientHeight, 0.1, 1000);
+    scene.background = null;
+    const width = containerRef.current.clientWidth;
+    const height = containerRef.current.clientHeight;
+    const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     
-    renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+    renderer.setSize(width, height);
     renderer.setPixelRatio(window.devicePixelRatio);
     containerRef.current.appendChild(renderer.domElement);
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
     scene.add(ambientLight);
 
-    const pointLight = new THREE.PointLight(0xffffff, 0.8);
-    pointLight.position.set(10, 10, 10);
-    scene.add(pointLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(5, 10, 7);
+    scene.add(dirLight);
 
-    const spotlight = new THREE.SpotLight(0xffffff, 0.5);
-    spotlight.position.set(-10, 10, -10);
-    scene.add(spotlight);
-
-    // Create Cube Structure
     const group = new THREE.Group();
-    const geometry = new THREE.BoxGeometry(0.95, 0.95, 0.95);
-    
-    // Setup Materials
+    const geometry = new THREE.BoxGeometry(0.96, 0.96, 0.96);
     const baseMaterial = new THREE.MeshStandardMaterial({ 
-      color: 0x111111, 
+      color: 0x050505, 
       roughness: 0.1, 
-      metalness: 0.5 
+      metalness: 0.8 
     });
 
+    const stickerGeom = new THREE.PlaneGeometry(0.85, 0.85);
+
+    // Build the 3x3x3 cube grid
     for (let x = -1; x <= 1; x++) {
       for (let y = -1; y <= 1; y++) {
         for (let z = -1; z <= 1; z++) {
-          const subCubeGroup = new THREE.Group();
+          const subCube = new THREE.Group();
           const mesh = new THREE.Mesh(geometry, baseMaterial);
-          subCubeGroup.add(mesh);
-          subCubeGroup.position.set(x, y, z);
-          
-          // Stickers logic simplified for demo
-          const stickerGeom = new THREE.PlaneGeometry(0.8, 0.8);
-          // Just adding one sticker per side for visual complexity
-          const stickers = [
-            { pos: [0.51, 0, 0], rot: [0, Math.PI/2, 0] },
-            { pos: [-0.51, 0, 0], rot: [0, -Math.PI/2, 0] },
-            { pos: [0, 0.51, 0], rot: [-Math.PI/2, 0, 0] },
-            { pos: [0, -0.51, 0], rot: [Math.PI/2, 0, 0] },
-            { pos: [0, 0, 0.51], rot: [0, 0, 0] },
-            { pos: [0, 0, -0.51], rot: [0, Math.PI, 0] },
-          ];
+          subCube.add(mesh);
+          subCube.position.set(x, y, z);
 
-          stickers.forEach((s, idx) => {
-            // Colors: U (white), D (yellow), L (orange), R (red), F (green), B (blue)
-            const colors = [0xFFFFFF, 0xFFFF00, 0xFFA500, 0xFF0000, 0x00FF00, 0x0000FF];
+          // Add stickers to faces based on the current CubeState
+          // x=1: Right (R), x=-1: Left (L)
+          // y=1: Up (U), y=-1: Down (D)
+          // z=1: Front (F), z=-1: Back (B)
+
+          const addSticker = (color: Color, position: [number, number, number], rotation: [number, number, number]) => {
             const sticker = new THREE.Mesh(
-              stickerGeom, 
-              new THREE.MeshStandardMaterial({ color: colors[idx], roughness: 0.3 })
+              stickerGeom,
+              new THREE.MeshStandardMaterial({ 
+                color: getThreeColor(color), 
+                roughness: 0.2,
+                metalness: 0.3,
+                emissive: getThreeColor(color),
+                emissiveIntensity: 0.1
+              })
             );
-            sticker.position.set(s.pos[0], s.pos[1], s.pos[2]);
-            sticker.rotation.set(s.rot[0], s.rot[1], s.rot[2]);
-            subCubeGroup.add(sticker);
-          });
+            sticker.position.set(...position);
+            sticker.rotation.set(...rotation);
+            subCube.add(sticker);
+          };
 
-          group.add(subCubeGroup);
-          cubesRef.current.push(subCubeGroup);
+          // Right face (R)
+          if (x === 1) {
+            const row = 1 - y; 
+            const col = 1 - z;
+            addSticker(state.R[row][col], [0.51, 0, 0], [0, Math.PI / 2, 0]);
+          }
+          // Left face (L)
+          if (x === -1) {
+            const row = 1 - y;
+            const col = z + 1;
+            addSticker(state.L[row][col], [-0.51, 0, 0], [0, -Math.PI / 2, 0]);
+          }
+          // Up face (U)
+          if (y === 1) {
+            const row = z + 1;
+            const col = x + 1;
+            addSticker(state.U[row][col], [0, 0.51, 0], [-Math.PI / 2, 0, 0]);
+          }
+          // Down face (D)
+          if (y === -1) {
+            const row = 1 - z;
+            const col = x + 1;
+            addSticker(state.D[row][col], [0, -0.51, 0], [Math.PI / 2, 0, 0]);
+          }
+          // Front face (F)
+          if (z === 1) {
+            const row = 1 - y;
+            const col = x + 1;
+            addSticker(state.F[row][col], [0, 0, 0.51], [0, 0, 0]);
+          }
+          // Back face (B)
+          if (z === -1) {
+            const row = 1 - y;
+            const col = 1 - x;
+            addSticker(state.B[row][col], [0, 0, -0.51], [0, Math.PI, 0]);
+          }
+
+          group.add(subCube);
+          cubesRef.current.push(subCube);
         }
       }
     }
-    scene.add(group);
 
+    scene.add(group);
     camera.position.set(5, 5, 5);
     camera.lookAt(0, 0, 0);
 
-    sceneRef.current = scene;
-    cameraRef.current = camera;
-    rendererRef.current = renderer;
-
     const animate = () => {
       requestAnimationFrame(animate);
-      group.rotation.y += 0.002;
+      group.rotation.y += 0.003;
       group.rotation.x += 0.001;
       renderer.render(scene, camera);
     };
     animate();
 
     const handleResize = () => {
-      if (!containerRef.current || !cameraRef.current || !rendererRef.current) return;
-      cameraRef.current.aspect = containerRef.current.clientWidth / containerRef.current.clientHeight;
-      cameraRef.current.updateProjectionMatrix();
-      rendererRef.current.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+      if (!containerRef.current) return;
+      const w = containerRef.current.clientWidth;
+      const h = containerRef.current.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
     };
 
     window.addEventListener('resize', handleResize);
@@ -119,9 +149,9 @@ const Cube3D: React.FC<Cube3DProps> = ({ state, className }) => {
       renderer.dispose();
       if (containerRef.current) containerRef.current.removeChild(renderer.domElement);
     };
-  }, []);
+  }, [state]);
 
-  return <div ref={containerRef} className={`${className} rounded-3xl overflow-hidden bg-slate-900 shadow-inner`} />;
+  return <div ref={containerRef} className={`${className} bg-slate-900/40 backdrop-blur-sm`} />;
 };
 
 export default Cube3D;
